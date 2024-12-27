@@ -50,9 +50,12 @@ def __read_vox_frag__(path, fragment_idx):
         You may consider to design a mask ans utilize __read_vox__.
     '''
     # TODO
+    vox = __read_vox__(path)
+    mask = (vox == fragment_idx)
+    vox_fragment = mask.astype(np.uint64)
+    return vox_fragment
 
-
-def __read_vox__(path):
+def __read_vox__(path,resolution=64):
     ''' read the .vox file from given path.
         
         Input: path (str)
@@ -68,6 +71,12 @@ def __read_vox__(path):
         
     '''
     # TODO
+    tmp = pyvox.parser.VoxParser(path).parse().to_dense().astype(np.uint64)
+    tmp = tmp[0 : resolution, 0 : resolution, 0 : resolution] #这里由于raw data尺寸都是64
+    vox = np.zeros((resolution, resolution, resolution))
+    vox[0 : tmp.shape[0], 0 : tmp.shape[1], 0 : tmp.shape[2]] = tmp
+
+    return vox
 
 
 def plot(voxel_matrix, save_dir):
@@ -89,7 +98,7 @@ def plot(voxel_matrix, save_dir):
     fig = go.Figure(data=go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=\
                     dict(size=5, symbol='square', color='#ceabb2', line=dict(width=2,color='DarkSlateGrey',))))
     fig.update_layout()
-
+    fig.write_image(save_dir)
     fig.show()
     
 
