@@ -97,7 +97,9 @@ def plot(voxel_matrix, save_dir):
     x, y, z = voxels[:, 0], voxels[:, 1], voxels[:, 2]
     fig = go.Figure(data=go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=\
                     dict(size=5, symbol='square', color='#ceabb2', line=dict(width=2,color='DarkSlateGrey',))))
-    fig.update_layout()
+    fig.update_layout(
+        
+    )
     fig.write_image(save_dir)
     fig.show()
     
@@ -120,6 +122,23 @@ def plot_frag(vox_pottery, save_dir):
         fig.update_layout() & fig.show()
 
     '''
+    append_lis = []
+    colors = ['#ceabb2', '#d05d86', '#7e1b2f', '#c1375b', '#cdc1c3',
+              '#ceabb2', '#d05d86', '#7e1b2f', '#c1375b', '#cdc1c3']
+    for idx, label in enumerate(np.unique(vox_pottery)):
+        if label == 0:
+            continue
+        voxel_matrix = vox_pottery.copy()
+        voxel_matrix = (voxel_matrix == label)
+        voxels = np.array(np.where(voxel_matrix)).T
+        x, y, z = voxels[:, 0], voxels[:, 1], voxels[:, 2]
+        data = go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=\
+                            dict(size=5, symbol='square', color=colors[idx % len(colors)], line=dict(width=2, color='DarkSlateGrey',)))
+        append_lis.append(data)
+    fig = go.Figure(append_lis)
+    fig.update_layout()
+    fig.write_image(save_dir)
+    fig.show()
 
 
 def plot_join(vox_1, vox_2):
