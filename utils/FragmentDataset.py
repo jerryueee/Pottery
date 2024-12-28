@@ -1,7 +1,9 @@
 import glob
 from torch.utils.data import Dataset
 import numpy as np
+import random
 import pyvox.parser
+import re
 
 ## Implement the Voxel Dataset Class
 
@@ -44,25 +46,39 @@ class FragmentDataset(Dataset):
         # self.vox_files is a list consists all file names (can use sorted() method and glob.glob())
         # please delete the "return" in __init__
         # TODO
-        return
+        self.vox_type = vox_type #应该是'train' or 'test'，而不是具体的陶罐类别号 
+        self.vox_path = vox_path #只需要给出数据的文件夹名，就会自动找很多组数据
+        self.transform = transform
+        self.dim_size = dim_size
+        # self.vox_files = [] #???
+        self.vox_files = glob.glob('{0} / {1} / * / * .vox'.format(self.vox_path, self.vox_type))
+        self.vox_files = sorted(self.vox_files)
 
     def __len__(self):
         # may return len(self.vox_files)
         # TODO
-        return 
+        return len(self.vox_files)
 
     def __read_vox__(self, path):
         # read voxel, transform to specific resolution
         # you may utilize self.dim_size
         # return numpy.ndrray type with shape of res*res*res (*1 or * 4) np.array (w/w.o norm vectors)
         # TODO
-        return 
+        tmp = pyvox.parser.VoxParser(path).parse().to_dense().astype(np.uint64)
+        tmp = tmp[0:self.dim_size, 0:self.dim_size, 0:self.dim_size]
+        vox = np.zeros((self.dim_size, self.dim_size, self.dim_size))
+        vox[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
+        return tmp
 
     def __select_fragment__(self, voxel):
         # randomly select one picece in voxel
         # return selected voxel and the random id select_frag
         # hint: find all voxel ids from voxel, and randomly pick one as fragmented data (hint: refer to function below)
         # TODO
+        frag_id = np.unique(voxel)[1:]
+        idx = random.randint(0, len(frag_id) - 1) #注意这个函数左闭右闭
+        select_frag = frag_id[idx]
+        voxel = (voxel == select_frag)
         return voxel, select_frag
         
     def __non_select_fragment__(self, voxel, select_frag):
@@ -78,6 +94,14 @@ class FragmentDataset(Dataset):
     def __select_fragment_specific__(self, voxel, select_frag):
         # pick designated piece of fragments in voxel
         # TODO
+        # voxel = (voxel == select_frag)
+        # Fragments 可能包含多个指定的片段
+        frag_id = np.unique(voxel)[1:]
+        for f in frag_id:
+            if f in select_frag:
+                voxel[voxel == f] = 1
+            else:
+                voxel[voxel == f] = 0
         return voxel, select_frag
 
     def __getitem__(self, idx):
@@ -87,11 +111,28 @@ class FragmentDataset(Dataset):
         # 4. receive fragment voxel and fragment id 
         # 5. then if self.transform: call transformation function vox & frag
 
+        #train
+        img_path = self.vox_files[idx]
+        vox = self.__read_vox__(img_path)
+        match = re.search(r'\d+',img_path) #根据文件的命名格式，利用正则表达式搜索出path中的数字作为label
+        label = match.group()
+        frag, select_frag = self.__select_fragment__(vox.copy())
+        if self.transform:
+            vox = self.transform(vox)
         return frag, vox,  # select_frag, int(label)-1#, img_path
 
     def __getitem_specific_frag__(self, idx, select_frag):
         # TODO
         # implement by yourself, similar to __getitem__ but designate frag_id
+        
+        #test
+        img_path = self.vox_files[idx]
+        vox = self.__read_vox__(img_path)
+        match = re.search(r'\d+', img_path)
+        label = match.group()
+        frag, select_frag = self.__select_fragment_specific__(vox.copy(), select_frag)
+        if self.transform:
+            vox = self.transform(vox)
         return frag, vox,  # select_frag, int(label)-1, img_path
 
     def __getfractures__(self, idx):
