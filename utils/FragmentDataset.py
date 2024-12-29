@@ -51,7 +51,7 @@ class FragmentDataset(Dataset):
         self.transform = transform
         self.dim_size = dim_size
         # self.vox_files = [] #???
-        self.vox_files = glob.glob('{0} / {1} / * / * .vox'.format(self.vox_path, self.vox_type))
+        self.vox_files = glob.glob('../{0}/{1}/*/*.vox'.format(self.vox_path, self.vox_type))
         self.vox_files = sorted(self.vox_files)
 
     def __len__(self):
@@ -78,7 +78,11 @@ class FragmentDataset(Dataset):
         frag_id = np.unique(voxel)[1:]
         idx = random.randint(0, len(frag_id) - 1) #注意这个函数左闭右闭
         select_frag = frag_id[idx]
-        voxel = (voxel == select_frag)
+        for f in frag_id:
+            if f == select_frag:
+                voxel[voxel == f] = 1
+            else :
+                voxel[voxel == f] = 0
         return voxel, select_frag
         
     def __non_select_fragment__(self, voxel, select_frag):
@@ -119,7 +123,8 @@ class FragmentDataset(Dataset):
         frag, select_frag = self.__select_fragment__(vox.copy())
         if self.transform:
             vox = self.transform(vox)
-        return frag, vox,  # select_frag, int(label)-1#, img_path
+            frag = self.transform(frag)
+        return frag, vox, int(label) - 1 # select_frag, int(label)-1#, img_path
 
     def __getitem_specific_frag__(self, idx, select_frag):
         # TODO
@@ -133,7 +138,8 @@ class FragmentDataset(Dataset):
         frag, select_frag = self.__select_fragment_specific__(vox.copy(), select_frag)
         if self.transform:
             vox = self.transform(vox)
-        return frag, vox,  # select_frag, int(label)-1, img_path
+            frag = self.transform(frag)
+        return frag, vox, int(label) - 1 # select_frag, int(label)-1, img_path
 
     def __getfractures__(self, idx):
         img_path = self.vox_files[idx]
