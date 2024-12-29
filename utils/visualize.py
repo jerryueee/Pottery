@@ -132,7 +132,7 @@ def plot_frag(vox_pottery, save_dir):
         voxel_matrix = (voxel_matrix == label)
         voxels = np.array(np.where(voxel_matrix)).T
         x, y, z = voxels[:, 0], voxels[:, 1], voxels[:, 2]
-        data = go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=\
+        data = go.Scatter3d(x=x, y=y, z=z, mode='markers', name='Fragment({}) {}'.format(idx, label), marker=\
                             dict(size=5, symbol='square', color=colors[idx % len(colors)], line=dict(width=2, color='DarkSlateGrey',)))
         append_lis.append(data)
     fig = go.Figure(append_lis)
