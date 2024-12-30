@@ -68,7 +68,7 @@ class FragmentDataset(Dataset):
         tmp = tmp[0:self.dim_size, 0:self.dim_size, 0:self.dim_size]
         vox = np.zeros((self.dim_size, self.dim_size, self.dim_size))
         vox[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
-        return tmp
+        return vox
 
     def __select_fragment__(self, voxel):
         # randomly select one picece in voxel
