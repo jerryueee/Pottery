@@ -49,7 +49,7 @@ class Discriminator(torch.nn.Module):
             # DBlock(resolution * 8, 1, pad_or_not=False),
             nn.Conv3d(resolution * 8, 1, kernel_size=4, stride=2, padding=0),
         )
-    
+
     def forward(self, x):
         # Try to connect all modules to make the model operational!
         # Note that the shape of x may need adjustment
@@ -108,8 +108,8 @@ class Generator(torch.nn.Module):
             nn.ConvTranspose3d(self.output_len,1,kernel_size=4,stride=2,padding=1)
         )
 
-    def encode_forward(self, x):
-        # you may also find torch.view() useful to adjust the shape of x
+    def forward(self, x):
+        # you may also find torch.view() useful
         # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
         x = x.view((-1, 1, self.cube_len, self.cube_len, self.cube_len))
         out = self.encode_conv(x)

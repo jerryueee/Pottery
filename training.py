@@ -13,6 +13,7 @@
 
 import numpy as np
 import torch
+import tqdm
 from torch import optim
 from torch.utils import data
 from torch import nn
@@ -38,7 +39,7 @@ def main():
     # 11. test result save dir
     # 12. device!
     # .... (maybe there exists more hyperparams to be appointed)
-    
+
     parser = argparse.ArgumentParser(description='An example script with command-line arguments.')
     #TODO (TO MODIFY, NOT CORRECT)
     # 添加一个命令行参数
@@ -47,22 +48,41 @@ def main():
     # 添加一个可选的布尔参数
     parser.add_argument('--verbose', action='store_true', help='Enable verbose mode.')
     # TODO
+    parser.add_argument('--mode', type=str, default='train') #训练or测试
     # 解析命令行参数
     args = parser.parse_args()
     
+    dirdataset = args.input_file
+    z_latent_space = 64
+    G_lr = 2e-3
+    D_lr = 2e-4
+    beta1 = 0.9
+    beta2 = 0.999
+    batch_size = 64
+    epoches = 100
+    resolution = 64
+    available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
     ### Initialize train and test dataset
     ## for example,
-    dt = FragmentDataset(dirdataset, 'train')
-    # TODO
+    trainset = FragmentDataset(dirdataset, 'train', dim_size=resolution)
+    testset = FragmentDataset(dirdataset, 'test', dim_size=resolution)
     
     ### Initialize Generator and Discriminator to specific device
     ### Along with their optimizers
     ## for example,
-    D = Discriminator().to(available_device)
+    D = Discriminator(resolution=resolution).to(available_device)
     # TODO
-    
+    G = Generator(cube_len=resolution, z_latent_space=128, z_intern_space=resolution).to(available_device)
+    Doptimizer = optim.adam(D.parameters(), lr = D_lr, betas=(beta1, beta2))
+    Goptimizer = optim.adam(G.parameters(), lr = G_lr, betas=(beta1, beta2))
+    Dscheduler = optim.lr_scheduler.CosineAnnealingLR(Doptimizer, T_max=20)
+    Gscheduler = optim.lr_scheduler.CosineAnnealingLR(Goptimizer, T_max=20)
+    criterion = nn.BCELoss()
     ### Call dataloader for train and test dataset
-    
+    trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=8)
+    testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=8)
+
     ### Implement GAN Loss!!
     # TODO
     

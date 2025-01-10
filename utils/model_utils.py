@@ -15,6 +15,7 @@ def posprocessing(fake, mesh_frag):
 # You can implement the below two functions to load checkpoints and visualize .vox files. Option choice
 
 # define available_device
+available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_generator(path_checkpoint):
     ## for evaluation?

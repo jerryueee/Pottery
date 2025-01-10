@@ -41,7 +41,7 @@ import re
 '''
 
 class FragmentDataset(Dataset):
-    def __init__(self, vox_path, vox_type, dim_size=64, transform=None):
+    def __init__(self, vox_path, vox_type:str, dim_size=64, transform=None):
         #  you may need to initialize self.vox_type, self.vox_path, self.transform, self.dim_size, self.vox_files
         # self.vox_files is a list consists all file names (can use sorted() method and glob.glob())
         # please delete the "return" in __init__
@@ -124,7 +124,7 @@ class FragmentDataset(Dataset):
         if self.transform:
             vox = self.transform(vox)
             frag = self.transform(frag)
-        return frag, vox, int(label) - 1 # select_frag, int(label)-1#, img_path
+        return frag, vox # select_frag, int(label)-1#, img_path
 
     def __getitem_specific_frag__(self, idx, select_frag):
         # TODO
@@ -139,7 +139,7 @@ class FragmentDataset(Dataset):
         if self.transform:
             vox = self.transform(vox)
             frag = self.transform(frag)
-        return frag, vox, int(label) - 1 # select_frag, int(label)-1, img_path
+        return frag, vox # select_frag, int(label)-1, img_path
 
     def __getfractures__(self, idx):
         img_path = self.vox_files[idx]
