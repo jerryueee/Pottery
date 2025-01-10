@@ -39,8 +39,8 @@ class Discriminator(torch.nn.Module):
         # REMENBER YOU ARE WRITING A DISCRIMINATOR (binary classification) so Sigmoid
         # Dele return in __init__
         # TODO
-        self.resolution = resolution
         super().__init__()
+        self.resolution = resolution
         self.func = nn.Sequential(
             DBlock(1, resolution, pad_or_not=True),
             DBlock(resolution, resolution * 2, pad_or_not=True),
@@ -60,18 +60,70 @@ class Discriminator(torch.nn.Module):
         x = x.view(-1, 1) # 一个竖列向量
         out = nn.Sigmoid(x)
         return out # 输出值在0-1之间
-        
+
+class GBlock(nn.Module):
+    def __init__(self, inchannel, outchannel, pad_or_not:bool):
+        super().__init__()
+        if pad_or_not:
+            self.pad = 1
+        else:
+            self.pad = 0
+        self.func = nn.Sequential(
+            nn.ConvTranspose3d(inchannel, outchannel, kernel_size=4, stride=2, padding=self.pad),
+            nn.BatchNorm3d(outchannel),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        out = self.func(x)
+        return out      
     
 class Generator(torch.nn.Module):
     # TODO
     def __init__(self, cube_len=64, z_latent_space=64, z_intern_space=64):
+        super().__init__()
         # similar to Discriminator
         # Despite the blocks introduced above, you may also find torch.nn.ConvTranspose3d()
         # Dele return in __init__
         # TODO
-        return
+        # from 128-dim vector to 32*32*32 matrix
+        # use torch.nn.functional.conv_transpose3d
+        # 5 layers each including conv_transpose,batchnorm,relu.
+        # conv_transpose:4*4*4,stride=2,padding=1
+        self.cube_len = cube_len
+        self.latent_space=z_latent_space
+        self.output_len=z_intern_space
+        self.encode_conv=nn.Sequential(
+            DBlock(1,self.cube_len,pad_or_not=True),
+            DBlock(self.cube_len,self.cube_len*2,pad_or_not=True),
+            DBlock(self.cube_len*2,self.cube_len*4,pad_or_not=True),
+            DBlock(self.cube_len*4,self.cube_len*8,pad_or_not=True),
+            nn.Conv3d(self.cube_len*8,self.latent_space,kernel_size=4,stride=2,padding=0)
+        )
+        self.decode_conv=nn.Sequential(
+            GBlock(self.latent_space,self.output_len*8,pad_or_not=True),
+            GBlock(self.output_len*8,self.output_len*4,pad_or_not=True),
+            GBlock(self.output_len*4,self.output_len*2,pad_or_not=True),
+            GBlock(self.output_len*2,self.output_len,pad_or_not=True),
+            nn.ConvTranspose3d(self.output_len,1,kernel_size=4,stride=2,padding=1)
+        )
+
+    def encode_forward(self, x):
+        # you may also find torch.view() useful to adjust the shape of x
+        # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
+        x = x.view((-1, 1, self.cube_len, self.cube_len, self.cube_len))
+        out = self.encode_conv(x)
+        out = out.view(-1, self.latent_space)
+        return out
+    
+    def decode_forward(self, x):
+        # you may also find torch.view() useful to adjust the shape of x
+        x=x.view(-1,self.latent_space,1,1,1)
+        out=self.decode_conv(x)
+        out = torch.where(out > 0.5, torch.ones_like(out), torch.zeros_like(out))
+        return out
     
     def forward(self, x):
-        # you may also find torch.view() useful
-        # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
-        return out
+        x = self.encode_forward(x)
+        x = self.decode_forward(x)
+        return x
