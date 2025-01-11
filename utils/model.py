@@ -127,7 +127,7 @@ class Generator(torch.nn.Module):
     def encode_forward(self, x):
         x = x.view((-1, 1, self.cube_len, self.cube_len, self.cube_len))
         out = self.encoder(x)
-        out = out.view(-1, 1)# 与Discrimination一致，输出二维张量
+        out = out.view(-1, self.latent_space)# 与Discrimination一致，输出二维张量
         return out
     
     def decode_forward(self, x):
@@ -141,3 +141,31 @@ class Generator(torch.nn.Module):
         out = self.encode_forward(x)
         out = self.decode_forward(out)
         return out
+    
+class DSCLoss(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def forward(self, A:torch.Tensor, B:torch.Tensor):
+        A = A.bool()
+        B = B.bool()
+        intersection = A & B
+        si = torch.sum(intersection, dim=(1,2,3))
+        sa = torch.sum(A, dim=(1,2,3))
+        sb = torch.sum(B, dim=(1,2,3))
+        dsc = 2 * si / (sa + sb)
+        return dsc.mean()        
+
+
+class JDLoss(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def forward(self, A:torch.Tensor, B:torch.Tensor):
+        A = A.bool()
+        B = B.bool()
+        union = A | B
+        intersection = A & B
+        su = torch.sum(union, dim=(1,2,3))
+        si = torch.sum(intersection, dim=(1,2,3))
+        jd = (su -si) / su
+        return jd.mean()
+        
