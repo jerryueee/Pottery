@@ -23,7 +23,7 @@ class DBlock(nn.Module):
         self.func = nn.Sequential(
             nn.Conv3d(inchannel, outchannel, kernel_size=4, stride=2, padding=self.pad),
             nn.BatchNorm3d(outchannel),
-            nn.LeakyReLU(0.2)
+            nn.LeakyReLU(0.2, inplace=True)
         )
 
     def forward(self, x):
@@ -41,13 +41,17 @@ class Discriminator(torch.nn.Module):
         # TODO
         super().__init__()
         self.resolution = resolution
+        if resolution == 32:
+            self.pad = 1
+        else: 
+            self.pad = 0
         self.func = nn.Sequential(
             DBlock(1, resolution, pad_or_not=True),
             DBlock(resolution, resolution * 2, pad_or_not=True),
             DBlock(resolution * 2, resolution * 4, pad_or_not=True),
             DBlock(resolution * 4, resolution * 8, pad_or_not=True),
             # DBlock(resolution * 8, 1, pad_or_not=False),
-            nn.Conv3d(resolution * 8, 1, kernel_size=4, stride=2, padding=0),
+            nn.Conv3d(resolution * 8, 1, kernel_size=4, stride=2, padding=self.pad),# resolutin=32时这里是2*2*2，需要padding
         )
 
     def forward(self, x):
@@ -59,25 +63,32 @@ class Discriminator(torch.nn.Module):
         x = self.func(x)
         x = x.view(-1, 1) # 一个竖列向量
         out = nn.Sigmoid(x)
-        return out # 输出值在0-1之间
-
-class GBlock(nn.Module):
-    def __init__(self, inchannel, outchannel, pad_or_not:bool):
+        return out # 输出值在0-1之间的二维张量
+   
+class G_e_Block(nn.Module):
+    def __init__(self, inchannel, outchannel):
         super().__init__()
-        if pad_or_not:
-            self.pad = 1
-        else:
-            self.pad = 0
         self.func = nn.Sequential(
-            nn.ConvTranspose3d(inchannel, outchannel, kernel_size=4, stride=2, padding=self.pad),
+            nn.Conv3d(inchannel, outchannel, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm3d(outchannel),
-            nn.ReLU()
+            nn.LeakyReLU(0.2, inplace=True)
         )
-
     def forward(self, x):
         out = self.func(x)
-        return out      
-    
+        return out
+
+class G_d_Block(nn.Module):
+    def __init__(self, inchannel, outchannel, pad=1):
+        super().__init__()
+        self.func = nn.Sequential(
+            nn.ConvTranspose3d(inchannel, outchannel, kernel_size=4, stride=2, padding=pad),
+            nn.BatchNorm3d(outchannel),
+            nn.ReLU(inplace=True)
+        )
+    def forward(self, x):
+        out = self.func(x)
+        return out
+
 class Generator(torch.nn.Module):
     # TODO
     def __init__(self, cube_len=64, z_latent_space=64, z_intern_space=64):
@@ -93,37 +104,40 @@ class Generator(torch.nn.Module):
         self.cube_len = cube_len
         self.latent_space=z_latent_space
         self.output_len=z_intern_space
-        self.encode_conv=nn.Sequential(
-            DBlock(1,self.cube_len,pad_or_not=True),
-            DBlock(self.cube_len,self.cube_len*2,pad_or_not=True),
-            DBlock(self.cube_len*2,self.cube_len*4,pad_or_not=True),
-            DBlock(self.cube_len*4,self.cube_len*8,pad_or_not=True),
-            nn.Conv3d(self.cube_len*8,self.latent_space,kernel_size=4,stride=2,padding=0)
+        if self.cube_len == 32:
+            self.pad = 1
+        else:
+            self.pad = 0
+        self.encoder = nn.Sequential(
+            G_e_Block(1, self.cube_len),
+            G_e_Block(self.cube_len, self.cube_len * 2),
+            G_e_Block(self.cube_len * 2, self.cube_len * 4),
+            G_e_Block(self.cube_len * 4, self.cube_len * 8),
+            nn.Conv3d(self.cube_len * 8, self.latent_space, padding=self.pad)
         )
-        self.decode_conv=nn.Sequential(
-            GBlock(self.latent_space,self.output_len*8,pad_or_not=True),
-            GBlock(self.output_len*8,self.output_len*4,pad_or_not=True),
-            GBlock(self.output_len*4,self.output_len*2,pad_or_not=True),
-            GBlock(self.output_len*2,self.output_len,pad_or_not=True),
-            nn.ConvTranspose3d(self.output_len,1,kernel_size=4,stride=2,padding=1)
+        self.decoder = nn.Sequential(
+            G_d_Block(self.latent_space, self.cube_len * 8, pad=self.pad),
+            G_d_Block(self.cube_len * 8, self.cube_len * 4),
+            G_d_Block(self.cube_len * 4, self.cube_len * 2),
+            G_d_Block(self.cube_len * 2, self.cube_len),
+            nn.ConvTranspose3d(self.cube_len, 1, kernel_size=4, stride=1, padding=1)
         )
 
-    def forward(self, x):
-        # you may also find torch.view() useful
-        # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
+
+    def encode_forward(self, x):
         x = x.view((-1, 1, self.cube_len, self.cube_len, self.cube_len))
-        out = self.encode_conv(x)
-        out = out.view(-1, self.latent_space)
+        out = self.encoder(x)
+        out = out.view(-1, 1)# 与Discrimination一致，输出二维张量
         return out
     
     def decode_forward(self, x):
-        # you may also find torch.view() useful to adjust the shape of x
-        x=x.view(-1,self.latent_space,1,1,1)
-        out=self.decode_conv(x)
-        out = torch.where(out > 0.5, torch.ones_like(out), torch.zeros_like(out))
+        x = x.view(-1, self.latent_space, 1, 1, 1)
+        out = self.decoder(x)
         return out
     
     def forward(self, x):
-        x = self.encode_forward(x)
-        x = self.decode_forward(x)
-        return x
+        # you may also find torch.view() useful to adjust the shape of x
+        # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
+        out = self.encode_forward(x)
+        out = self.decode_forward(out)
+        return out
