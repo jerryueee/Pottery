@@ -113,7 +113,7 @@ def main():
         
             frags = frags.to(available_device)
             voxels = voxels.to(available_device)
-            real_label = torch.tensor(np.random.uniform(0.70, 1.10, (batch_size))).to(available_device).float()
+            real_label = torch.tensor(np.random.uniform(0.70, 1.00, (batch_size))).to(available_device).float()
             fake_label = torch.tensor(np.random.uniform(0.0, 0.30, (batch_size))).to(available_device).float()
             labels = torch.cat([real_label, fake_label], dim=0)
             labels = labels.view(-1, 1)
@@ -139,8 +139,9 @@ def main():
             # G
             G.train()
             G.zero_grad()
+            fake = frags + G(frags)
             pre_label = D(fake)
-            gloss = Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3
+            gloss = (Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3)
             gloss.backward()
             Goptimizer.step()
             running_loss_g += gloss.item() * frags.size(0)
