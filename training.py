@@ -90,27 +90,6 @@ def main():
     Gcriterion2 = DSCLoss()
     Gcriterion3 = JDLoss()
     k1, k2, k3 = 0.4, 0.3, 0.3
-
-    def DSCLoss(x,y):
-        # x,y: 3D tensor,both l*l*l
-        # 展平
-        x=x.view(-1)
-        y=y.view(-1)
-        sum=torch.sum(x)+torch.sum(y)
-        union = sum - torch.dot(x,y)
-        # 计算dice
-        return 2*union/sum
-    
-    def JDLoss(x,y):
-        # x,y: 3D tensor,both l*l*l
-        # 展平
-        x=x.view(-1)
-        y=y.view(-1)
-        # 计算jaccard
-        return 1-torch.sum(x*y)/torch.sum(x+y-x*y)
-
-
-
     
     ### Training Loop implementation
     ### You can refer to other papers / github repos for training a GAN
@@ -144,7 +123,7 @@ def main():
             G.train()
             G.zero_grad()
             pre_label = D(fake)
-            gloss = Gcriterion1(pre_label, real_label) * k1 + Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3
+            gloss = Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3
             gloss.backward()
             Goptimizer.step()
             running_loss_g += gloss.item() * frags.size(0)
