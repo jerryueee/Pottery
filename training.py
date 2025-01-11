@@ -133,6 +133,7 @@ def main():
         if (epoch + 1) % 10 == 0:
             # test()           
             # pass
+            test(G, 0.1,False)
             torch.save(G.state_dict(), f'./model_path/G{epoch + 1}.path')
             torch.save(D.state_dict(), f'./model_path/D{epoch + 1}.path')
            
