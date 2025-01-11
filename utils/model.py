@@ -53,6 +53,7 @@ class Discriminator(torch.nn.Module):
             # DBlock(resolution * 8, 1, pad_or_not=False),
             nn.Conv3d(resolution * 8, 1, kernel_size=4, stride=2, padding=self.pad),# resolutin=32时这里是2*2*2，需要padding
         )
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         # Try to connect all modules to make the model operational!
@@ -62,7 +63,7 @@ class Discriminator(torch.nn.Module):
         x = x.view((-1, 1, self.resolution, self.resolution, self.resolution))
         x = self.func(x)
         x = x.view(-1, 1) # 一个竖列向量
-        out = nn.Sigmoid(x)
+        out = self.sigmoid(x)
         return out # 输出值在0-1之间的二维张量
    
 class G_e_Block(nn.Module):
@@ -120,7 +121,7 @@ class Generator(torch.nn.Module):
             G_d_Block(self.cube_len * 8, self.cube_len * 4),
             G_d_Block(self.cube_len * 4, self.cube_len * 2),
             G_d_Block(self.cube_len * 2, self.cube_len),
-            nn.ConvTranspose3d(self.cube_len, 1, kernel_size=4, stride=1, padding=1)
+            nn.ConvTranspose3d(self.cube_len, 1, kernel_size=4, stride=2, padding=1)
         )
 
 
@@ -132,6 +133,7 @@ class Generator(torch.nn.Module):
     
     def decode_forward(self, x):
         x = x.view(-1, self.latent_space, 1, 1, 1)
+        # print(x.size())
         out = self.decoder(x)
         return out
     
@@ -140,7 +142,8 @@ class Generator(torch.nn.Module):
         # we strongly suggest you to write this method seperately to forward_encode(self, x) and forward_decode(self, x)   
         out = self.encode_forward(x)
         out = self.decode_forward(out)
-        return out
+        # print(out.size())
+        return out.view(-1, self.cube_len, self.cube_len, self.cube_len)
 
 # 越大越好   
 class DSCLoss(nn.Module):

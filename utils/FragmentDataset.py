@@ -4,7 +4,7 @@ import numpy as np
 import random
 import pyvox.parser
 import re
-
+import os
 ## Implement the Voxel Dataset Class
 
 ### Notice:
@@ -51,8 +51,13 @@ class FragmentDataset(Dataset):
         self.transform = transform
         self.dim_size = dim_size
         # self.vox_files = [] #???
-        self.vox_files = glob.glob('../{0}/{1}/*/*.vox'.format(self.vox_path, self.vox_type))
+        # self.vox_files = glob.glob('../{0}/{1}/*/*.vox'.format(self.vox_path, self.vox_type))        
+        # self.vox_files = sorted(self.vox_files)
+        # print(f"vox_path: {self.vox_path}, vox_type: {self.vox_type}")
+        # print(f"glob pattern: ../{self.vox_path}/{self.vox_type}/*/*.vox")
+        self.vox_files = glob.glob(os.path.join(self.vox_path, self.vox_type, '*', '*.vox'))
         self.vox_files = sorted(self.vox_files)
+
 
     def __len__(self):
         # may return len(self.vox_files)
@@ -117,7 +122,7 @@ class FragmentDataset(Dataset):
 
         #train
         img_path = self.vox_files[idx]
-        vox = self.__read_vox__(img_path)
+        vox = self.__read_vox__(img_path).astype(np.float32)
         match = re.search(r'\d+',img_path) #根据文件的命名格式，利用正则表达式搜索出path中的数字作为label
         label = match.group()
         frag, select_frag = self.__select_fragment__(vox.copy())
@@ -132,7 +137,7 @@ class FragmentDataset(Dataset):
         
         #test
         img_path = self.vox_files[idx]
-        vox = self.__read_vox__(img_path)
+        vox = self.__read_vox__(img_path).astype(np.float32)
         match = re.search(r'\d+', img_path)
         label = match.group()
         frag, select_frag = self.__select_fragment_specific__(vox.copy(), select_frag)

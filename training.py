@@ -13,7 +13,7 @@
 
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 from torch import optim
 from torch.utils import data
 from torch import nn
@@ -24,6 +24,9 @@ import argparse
 import test
 
 DCS_threshold = 0.8
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 def main():
     ### Here is a simple demonstration argparse, you may customize your own implementations, and
@@ -62,13 +65,14 @@ def main():
     beta2 = 0.999
     batch_size = 64
     epoches = 2
-    resolution = 64
+    resolution = 32
     available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint_dir = './model_path/mode.path'
     
     ### Initialize train and test dataset
     ## for example,
     trainset = FragmentDataset(dirdataset, 'train', dim_size=resolution)
+    # print(len(trainset))
     testset = FragmentDataset(dirdataset, 'test', dim_size=resolution)
     
     ### Initialize Generator and Discriminator to specific device
@@ -84,6 +88,7 @@ def main():
     ### Call dataloader for train and test dataset
     trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=0)
     testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0)
+    # print(len(trainloader))
 
     ### Implement GAN Loss!!
     # TODO
@@ -104,20 +109,29 @@ def main():
     for epoch in range(epoches):
         running_loss_d = 0.0
         running_loss_g = 0.0
-        for frags, voxels in tqdm(trainloader):
+        for frags, voxels in tqdm(trainloader, desc=f"epoch:{epoch + 1}/{epoches}", unit="batch"):
+        
             frags = frags.to(available_device)
             voxels = voxels.to(available_device)
             real_label = torch.tensor(np.random.uniform(0.70, 1.10, (batch_size))).to(available_device).float()
             fake_label = torch.tensor(np.random.uniform(0.0, 0.30, (batch_size))).to(available_device).float()
             labels = torch.cat([real_label, fake_label], dim=0)
-
+            labels = labels.view(-1, 1)
             #暂时按照1：1训练D和G，后续调整训练次数比例
             # D
             D.train()
             D.zero_grad()
+            # a = G(frags)
+            # print(a.size())
+            # print(frags.size())
             fake = frags + G(frags)
+            # print(fake.size())
+            # print(frags.size())
+            # print(voxels.size())
             voxs = torch.cat([fake, voxels], dim=0)
             output = D(voxs)
+            # print(output.size())
+            # print(labels.size())
             dloss = Dcriterion(output, labels)
             dloss.backward()
             Doptimizer.step()

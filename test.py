@@ -90,7 +90,7 @@ def test():
     correct = 0
     total = 0
     with torch.no_grad():
-        for frags, voxels in tqdm(testloader):
+        for frags, voxels in tqdm(testloader, desc=f"epoch:{epoch + 1}/{epoches}", unit="batch"):
             frags, voxels = frags.to(available_device), voxels.to(available_device)
             outputs = model(frags)
             losses = DCS(outputs, voxels)
