@@ -113,7 +113,7 @@ class Generator(torch.nn.Module):
             G_e_Block(self.cube_len, self.cube_len * 2),
             G_e_Block(self.cube_len * 2, self.cube_len * 4),
             G_e_Block(self.cube_len * 4, self.cube_len * 8),
-            nn.Conv3d(self.cube_len * 8, self.latent_space, padding=self.pad)
+            nn.Conv3d(self.cube_len * 8, self.latent_space, kernel_size=4, stride=2, padding=self.pad)
         )
         self.decoder = nn.Sequential(
             G_d_Block(self.latent_space, self.cube_len * 8, pad=self.pad),
@@ -141,7 +141,8 @@ class Generator(torch.nn.Module):
         out = self.encode_forward(x)
         out = self.decode_forward(out)
         return out
-    
+
+# 越大越好   
 class DSCLoss(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -155,7 +156,7 @@ class DSCLoss(nn.Module):
         dsc = 2 * si / (sa + sb)
         return dsc.mean()        
 
-
+# 越小越好
 class JDLoss(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

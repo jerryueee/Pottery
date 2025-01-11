@@ -18,6 +18,11 @@ batch_size = 64
 checkpoint_dir = './model_path/mode.path'
 theta = 0.1
 
+
+JD_threshold = 0.1
+DCS_threshold = 0.8
+MSE_threshold = 0.1
+
 def criterion(outputs, targets):
     return nn.MSELoss()(outputs, targets)
 
@@ -43,28 +48,52 @@ def criterion_jd(outputs, targets):
         dsc_list.append(1-dsc)
     return torch.tensor(dsc_list)
 
-def test(model, test_ratio,use_load):
+def JD(fake:torch.Tensor, real:torch.Tensor):
+    fake = fake.bool()
+    real = real.bool()
+    intersection = fake & real
+    union = fake | real
+    si = torch.sum(intersection, dim=(1, 2, 3))
+    su = torch.sum(union, dim=(1, 2, 3))
+    jd = (su - si) / su
+    return jd
+
+def DCS(fake:torch.Tensor, real:torch.Tensor):
+    fake = fake.bool()
+    real = real.bool()
+    intersection = fake & real
+    si = torch.sum(intersection, dim=(1, 2, 3))
+    sa = torch.sum(fake, dim=(1, 2, 3))
+    sb = torch.sum(real, dim=(1, 2, 3))
+    dsc = 2 * si / (sa + sb)
+    return dsc
+
+def MSE(fake:torch.Tensor, real:torch.Tensor):
+    fake = fake.bool()
+    real = real.bool()
+    return nn.MSELoss()(fake, real)
+
+def test():
     # TODO
     # You can also implement this function in training procedure, but be sure to
     # evaluate the model on test set and reserve the option to save both quantitative
     # and qualitative (generated .vox or visualizations) images.
 
     # G = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)       
-    if use_load:
-        model.load_state_dict(torch.load(checkpoint_dir,weights_only=True))   
+    model = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)
+    model.load_state_dict(torch.load(checkpoint_dir), weights_only=True)
+    model.eval()
     testset = FragmentDataset('data', 'test', dim_size=resolution)
-    test_size = int(len(testset) * test_ratio)
-    testset = data.random_split(testset, [test_size, len(testset) - test_size])[0]
     testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=8)
 
     # test
-    correct=0
-    total=0
+    correct = 0
+    total = 0
     with torch.no_grad():
         for frags, voxels in tqdm(testloader):
             frags, voxels = frags.to(available_device), voxels.to(available_device)
             outputs = model(frags)
-            losses = criterion(outputs, voxels)
-            correct += (losses < theta).sum().item()
+            losses = DCS(outputs, voxels)
+            correct += (losses > DCS_threshold).sum().item()
             total += voxels.size(0)           
     print(f'Accuracy of pottery generated: {correct / total}')

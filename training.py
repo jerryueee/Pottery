@@ -21,7 +21,9 @@ from utils.FragmentDataset import FragmentDataset
 from utils.model import Generator, Discriminator, DSCLoss, JDLoss
 import click
 import argparse
-from test import *
+import test
+
+DCS_threshold = 0.8
 
 def main():
     ### Here is a simple demonstration argparse, you may customize your own implementations, and
@@ -52,14 +54,14 @@ def main():
     # 解析命令行参数
     args = parser.parse_args()
     
-    dirdataset = args.input_file
+    dirdataset = 'data'
     z_latent_space = 128
     G_lr = 2e-3
     D_lr = 2e-4
     beta1 = 0.9
     beta2 = 0.999
     batch_size = 64
-    epoches = 100
+    epoches = 2
     resolution = 64
     available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint_dir = './model_path/mode.path'
@@ -75,13 +77,13 @@ def main():
     D = Discriminator(resolution=resolution).to(available_device)
     # TODO
     G = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)
-    Doptimizer = optim.adam(D.parameters(), lr = D_lr, betas=(beta1, beta2))
-    Goptimizer = optim.adam(G.parameters(), lr = G_lr, betas=(beta1, beta2))
+    Doptimizer = optim.Adam(D.parameters(), lr = D_lr, betas=(beta1, beta2))
+    Goptimizer = optim.Adam(G.parameters(), lr = G_lr, betas=(beta1, beta2))
     Dscheduler = optim.lr_scheduler.CosineAnnealingLR(Doptimizer, T_max=20)
     Gscheduler = optim.lr_scheduler.CosineAnnealingLR(Goptimizer, T_max=20)
     ### Call dataloader for train and test dataset
-    trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=8)
-    testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=8)
+    trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=0)
+    testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     ### Implement GAN Loss!!
     # TODO
@@ -98,6 +100,7 @@ def main():
         # remember to stop gradients in testing!
         # also you may save checkpoints in specific numbers of iterartions
     best_acc = 0
+    best_model = G
     for epoch in range(epoches):
         running_loss_d = 0.0
         running_loss_g = 0.0
@@ -130,12 +133,29 @@ def main():
         Gscheduler.step()
         Dscheduler.step()
         print(f"epoch{epoch + 1}/{epoches},Train_loss_Discriminator{running_loss_d / len(trainloader.dataset):.4f},Train_loss_Generator{running_loss_g / len(trainloader.dataset):.4f}")
+        G.eval()
+        D.eval()
+        total = 0
+        correct = 0
+        with torch.no_grad():
+            for frags, voxels in testloader:
+                frags = frags.to(available_device)
+                voxels = voxels.to(available_device)
+                fake = frags + G(frags)
+                total += voxels.size(0)
+                similarity = test.DCS(voxels, fake)
+                correct += (similarity > DCS_threshold).sum().item()
+        acc = correct / total
+        if acc > best_acc:
+            best_acc = acc
+            best_model = G
+                
         if (epoch + 1) % 10 == 0:
             # test()           
             # pass
-            test(G, 0.1,False)
             torch.save(G.state_dict(), f'./model_path/G{epoch + 1}.path')
             torch.save(D.state_dict(), f'./model_path/D{epoch + 1}.path')
+    torch.save(best_model.state_dict(), checkpoint_dir)
            
 if __name__ == "__main__":
     main()
