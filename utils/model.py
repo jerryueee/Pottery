@@ -72,7 +72,7 @@ class G_e_Block(nn.Module):
         self.func = nn.Sequential(
             nn.Conv3d(inchannel, outchannel, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm3d(outchannel),
-            nn.LeakyReLU(0.2, inplace=True)
+            nn.LeakyReLU(0.01, inplace=True)
         )
     def forward(self, x):
         out = self.func(x)
@@ -128,14 +128,13 @@ class Generator(torch.nn.Module):
     def encode_forward(self, x):
         x = x.view((-1, 1, self.cube_len, self.cube_len, self.cube_len))
         out = self.encoder(x)
-        out = out.view(-1, self.latent_space)# 与Discrimination一致，输出二维张量
+        out = out.view(x.shape[0], -1)# 与Discrimination一致，输出二维张量
         return out
     
     def decode_forward(self, x):
         x = x.view(-1, self.latent_space, 1, 1, 1)
         # print(x.size())
         out = self.decoder(x)
-        out=torch.where(out>0.5,torch.ones_like(out),torch.zeros_like(out))
         return out
     
     def forward(self, x):
@@ -144,13 +143,13 @@ class Generator(torch.nn.Module):
         out = self.encode_forward(x)
         out = self.decode_forward(out)
         # print(out.size())
-        return out.view(-1, self.cube_len, self.cube_len, self.cube_len)
+        return out.view(x.size(0), self.cube_len, self.cube_len, self.cube_len)
 
 # 越大越好   
 class DSCLoss(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    def forward(self, A:torch.Tensor, B:torch.Tensor):
+    def forward(self, A:torch.Tensor, B:torch.Tensor):                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
         A = A.bool()
         B = B.bool()
         intersection = A & B

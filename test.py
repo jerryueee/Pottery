@@ -14,7 +14,7 @@ import utils.visualize as vis
 
 available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 available_device = torch.device('cpu')
-resolution = 32
+resolution = 64
 z_latent_space = 128
 batch_size = 64
 checkpoint_dir = './model_path/mode.path'
@@ -72,7 +72,9 @@ def DCS(fake:torch.Tensor, real:torch.Tensor):
 
 def MSE(fake:torch.Tensor, real:torch.Tensor):
     fake = fake.bool()
+    fake=fake.astype(int)
     real = real.bool()
+    real=real.astype(int)
     return nn.MSELoss()(fake, real)
 
 def test():
@@ -83,7 +85,7 @@ def test():
 
     # G = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)       
     model = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)
-    model.load_state_dict(torch.load(checkpoint_dir))
+    model.load_state_dict(torch.load(checkpoint_dir, weights_only=True))
     # ? weights_only = True
     model.eval()
     testset = FragmentDataset('data', 'test', dim_size=resolution)
@@ -102,7 +104,7 @@ def test():
                 # vis.plot_frag(np.ones((32,32,32)), 'test.png')
                 # vis.plot_frag(np.array(outputs[0]), 'test.png')
                 vis.plot_join(np.array(outputs[0]),frags[0], 'test_join.png')
-            losses = DCS(outputs, voxels)
-            correct += (losses > DCS_threshold).sum().item()
+            losses = JD(outputs, voxels)
+            correct += (losses).sum().item()
             total += voxels.size(0)           
-    print(f'Accuracy of pottery generated: {correct / total}')
+    print(f'loss of pottery generated: {correct / total}')

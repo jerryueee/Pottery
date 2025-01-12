@@ -19,12 +19,10 @@ from torch.utils import data
 from torch import nn
 from utils.FragmentDataset import FragmentDataset
 from utils.model import Generator, Discriminator, DSCLoss, JDLoss
-import click
 import argparse
-from test import DCS
-from test import test
+import test
 
-DCS_threshold = 0.8
+DCS_threshold = 0.4
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -65,13 +63,13 @@ def main():
     beta1 = 0.9
     beta2 = 0.999
     batch_size = 128
-    epoches = 2
-    resolution = 32
+    epoches = 100
+    resolution = 64
     available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint_dir = './model_path/mode.path'
 
     if args.mode == 'test':
-        test()
+        test.test()
         return   
    
     ### Initialize train and test dataset
@@ -91,17 +89,18 @@ def main():
     Dscheduler = optim.lr_scheduler.CosineAnnealingLR(Doptimizer, T_max=20)
     Gscheduler = optim.lr_scheduler.CosineAnnealingLR(Goptimizer, T_max=20)
     ### Call dataloader for train and test dataset
-    trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=0)
-    testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0)
+    trainloader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=8)
+    testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=8)
     # print(len(trainloader))
 
     ### Implement GAN Loss!!
     # TODO
     Dcriterion = nn.BCELoss()
-    Gcriterion1 = nn.MSELoss()
-    Gcriterion2 = DSCLoss()
-    Gcriterion3 = JDLoss()
-    k1, k2, k3 = 0.4, 0.3, 0.3
+    Gcriterion = nn.BCELoss()
+    # Gcriterion1 = nn.MSELoss()
+    # Gcriterion2 = DSCLoss()
+    # Gcriterion3 = JDLoss()
+    # k1, k2, k3 = 0.4, 0.3, 0.3
     
     ### Training Loop implementation
     ### You can refer to other papers / github repos for training a GAN
@@ -116,12 +115,12 @@ def main():
         running_loss_g = 0.0
         for frags, voxels in tqdm(trainloader, desc=f"epoch:{epoch + 1}/{epoches}", unit="batch"):
         
-            frags = frags.to(available_device)
-            voxels = voxels.to(available_device)
-            real_label = torch.tensor(np.random.uniform(0.70, 1.00, (batch_size))).to(available_device).float()
-            fake_label = torch.tensor(np.random.uniform(0.0, 0.30, (batch_size))).to(available_device).float()
-            labels = torch.cat([real_label, fake_label], dim=0)
-            labels = labels.view(-1, 1)
+            frags = frags.float().to(available_device)
+            voxels = voxels.float().to(available_device)
+            real_label = torch.tensor(np.random.uniform(0.80, 1.00, (batch_size))).to(available_device).float()
+            fake_label = torch.tensor(np.random.uniform(0.0, 0.20, (batch_size))).to(available_device).float()
+            # labels = torch.cat([real_label, fake_label], dim=0)
+            # labels = labels.view(-1, 1)
             #暂时按照1：1训练D和G，后续调整训练次数比例
             # D
             D.train()
@@ -130,23 +129,30 @@ def main():
             # print(a.size())
             # print(frags.size())
             fake = frags + G(frags)
+            fake_score = D(fake).view(batch_size)
+            real_socre = D(voxels).view(batch_size)
+            fake_loss = Dcriterion(fake_score, fake_label)
+            real_loss = Dcriterion(real_socre, real_label)
+            dloss = fake_loss + real_loss
+            dloss.backward()
+            Doptimizer.step()
             # print(fake.size())
             # print(frags.size())
             # print(voxels.size())
-            voxs = torch.cat([fake, voxels], dim=0)
-            output = D(voxs)
+            # voxs = torch.cat([fake, voxels], dim=0) 顺序写反了
+            # voxs = torch.cat([voxels, fake], dim=0)
+            # output = D(voxs).view(batch_size * 2)
             # print(output.size())
             # print(labels.size())
-            dloss = Dcriterion(output, labels)
-            dloss.backward()
-            Doptimizer.step()
             running_loss_d += dloss.item() * frags.size(0)
             # G
             G.train()
             G.zero_grad()
+            real_label = torch.tensor(np.ones((batch_size))).to(available_device).float()
             fake = frags + G(frags)
-            pre_label = D(fake)
-            gloss = (Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3)
+            pre_label = D(fake).view(batch_size)
+            # gloss = (Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3)
+            gloss = Gcriterion(pre_label, real_label)
             gloss.backward()
             Goptimizer.step()
             running_loss_g += gloss.item() * frags.size(0)
@@ -163,14 +169,15 @@ def main():
                 voxels = voxels.to(available_device)
                 fake = frags + G(frags)
                 total += voxels.size(0)
-                similarity = DCS(fake, voxels)
+                similarity = test.DCS(fake, voxels)
                 correct += (similarity > DCS_threshold).sum().item()
         acc = correct / total
+        print(f"epoch{epoch + 1}/{epoches},Test_Accuracy{acc:.4f}")
         if acc > best_acc:
             best_acc = acc
             best_model = G
                 
-        if (epoch + 1) % 2 == 0:
+        if (epoch + 1) % 10 == 0:
             # test()           
             # pass
             torch.save(G.state_dict(), f'./model_path/G{epoch + 1}.path')
