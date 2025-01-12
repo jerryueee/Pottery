@@ -9,10 +9,12 @@ from torch.utils import data
 from torch import nn
 from utils.FragmentDataset import FragmentDataset
 from utils.model import Generator, Discriminator
-import tqdm
+from tqdm import tqdm
+import utils.visualize as vis
 
 available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-resolution = 64
+available_device = torch.device('cpu')
+resolution = 32
 z_latent_space = 128
 batch_size = 64
 checkpoint_dir = './model_path/mode.path'
@@ -81,7 +83,8 @@ def test():
 
     # G = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)       
     model = Generator(cube_len=resolution, z_latent_space=z_latent_space, z_intern_space=resolution).to(available_device)
-    model.load_state_dict(torch.load(checkpoint_dir), weights_only=True)
+    model.load_state_dict(torch.load(checkpoint_dir))
+    # ? weights_only = True
     model.eval()
     testset = FragmentDataset('data', 'test', dim_size=resolution)
     testloader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=8)
@@ -90,9 +93,15 @@ def test():
     correct = 0
     total = 0
     with torch.no_grad():
-        for frags, voxels in tqdm(testloader, desc=f"epoch:{epoch + 1}/{epoches}", unit="batch"):
+        for frags, voxels in tqdm(testloader, desc=f"epoch:{1}/{1}", unit="batch"):
             frags, voxels = frags.to(available_device), voxels.to(available_device)
             outputs = model(frags)
+            if total < 5*batch_size:
+                print(outputs[0].size())
+                # print(outputs[0])
+                # vis.plot_frag(np.ones((32,32,32)), 'test.png')
+                # vis.plot_frag(np.array(outputs[0]), 'test.png')
+                vis.plot_join(np.array(outputs[0]),frags[0], 'test_join.png')
             losses = DCS(outputs, voxels)
             correct += (losses > DCS_threshold).sum().item()
             total += voxels.size(0)           

@@ -135,6 +135,7 @@ class Generator(torch.nn.Module):
         x = x.view(-1, self.latent_space, 1, 1, 1)
         # print(x.size())
         out = self.decoder(x)
+        out=torch.where(out>0.5,torch.ones_like(out),torch.zeros_like(out))
         return out
     
     def forward(self, x):

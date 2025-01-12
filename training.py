@@ -21,7 +21,8 @@ from utils.FragmentDataset import FragmentDataset
 from utils.model import Generator, Discriminator, DSCLoss, JDLoss
 import click
 import argparse
-import test
+from test import DCS
+from test import test
 
 DCS_threshold = 0.8
 
@@ -63,12 +64,16 @@ def main():
     D_lr = 2e-4
     beta1 = 0.9
     beta2 = 0.999
-    batch_size = 64
+    batch_size = 128
     epoches = 2
     resolution = 32
     available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint_dir = './model_path/mode.path'
-    
+
+    if args.mode == 'test':
+        test()
+        return   
+   
     ### Initialize train and test dataset
     ## for example,
     trainset = FragmentDataset(dirdataset, 'train', dim_size=resolution)
@@ -158,14 +163,14 @@ def main():
                 voxels = voxels.to(available_device)
                 fake = frags + G(frags)
                 total += voxels.size(0)
-                similarity = test.DCS(voxels, fake)
+                similarity = DCS(fake, voxels)
                 correct += (similarity > DCS_threshold).sum().item()
         acc = correct / total
         if acc > best_acc:
             best_acc = acc
             best_model = G
                 
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 2 == 0:
             # test()           
             # pass
             torch.save(G.state_dict(), f'./model_path/G{epoch + 1}.path')
