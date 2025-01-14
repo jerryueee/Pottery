@@ -18,9 +18,10 @@ from torch import optim
 from torch.utils import data
 from torch import nn
 from utils.FragmentDataset import FragmentDataset
-from utils.model import Generator, Discriminator, DSCLoss, JDLoss
+from utils.model import Generator, Discriminator
 import argparse
 import test
+from torch.utils.tensorboard import SummaryWriter
 
 DCS_threshold = 0.4
 
@@ -47,10 +48,10 @@ def main():
     parser = argparse.ArgumentParser(description='An example script with command-line arguments.')
     #TODO (TO MODIFY, NOT CORRECT)
     # 添加一个命令行参数
-    parser.add_argument('--input_file', type=str, help='Path to the input file.')
+    # parser.add_argument('--input_file', type=str, help='Path to the input file.')
     # TODO
     # 添加一个可选的布尔参数
-    parser.add_argument('--verbose', action='store_true', help='Enable verbose mode.')
+    # parser.add_argument('--verbose', action='store_true', help='Enable verbose mode.')
     # TODO
     parser.add_argument('--mode', type=str, default='train') #训练or测试
     # 解析命令行参数
@@ -59,14 +60,14 @@ def main():
     dirdataset = 'data'
     z_latent_space = 128
     G_lr = 2e-3
-    D_lr = 2e-4
+    D_lr = 2e-4 
     beta1 = 0.9
     beta2 = 0.999
-    batch_size = 128
-    epoches = 100
+    batch_size = 32
+    epoches = 50 # 比100稍好，可能由于GANs训练的不稳定性
     resolution = 64
     available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    checkpoint_dir = './model_path/mode.path'
+    checkpoint_dir = './model_path/model.path'
 
     if args.mode == 'test':
         test.test()
@@ -97,10 +98,13 @@ def main():
     # TODO
     Dcriterion = nn.BCELoss()
     Gcriterion = nn.BCELoss()
-    # Gcriterion1 = nn.MSELoss()
+    # voxelloss= VoxelLoss()
+    Gcriterion1 = nn.MSELoss()
     # Gcriterion2 = DSCLoss()
     # Gcriterion3 = JDLoss()
     # k1, k2, k3 = 0.4, 0.3, 0.3
+
+
     
     ### Training Loop implementation
     ### You can refer to other papers / github repos for training a GAN
@@ -110,6 +114,9 @@ def main():
         # also you may save checkpoints in specific numbers of iterartions
     best_acc = 0
     best_model = G
+
+    writer=SummaryWriter()
+
     for epoch in range(epoches):
         running_loss_d = 0.0
         running_loss_g = 0.0
@@ -122,6 +129,21 @@ def main():
             # labels = torch.cat([real_label, fake_label], dim=0)
             # labels = labels.view(-1, 1)
             #暂时按照1：1训练D和G，后续调整训练次数比例
+            # G
+            G.train()
+            G.zero_grad()
+            # real_label = torch.tensor(np.ones((batch_size))).to(available_device).float()
+            fake = frags + G(frags)
+            # print(D(fake).shape)
+            pre_label = D(fake).view(batch_size)
+            # print(pre_label.shape)
+            # gloss = (Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3)
+            # print(frags[0])
+            # print(fake[0])
+            gloss = Gcriterion(pre_label, real_label)#使得G朝着使D无法区分真假的方向训练
+            gloss.backward()
+            Goptimizer.step()
+            running_loss_g += gloss.item() * frags.size(0)
             # D
             D.train()
             D.zero_grad()
@@ -133,7 +155,7 @@ def main():
             real_socre = D(voxels).view(batch_size)
             fake_loss = Dcriterion(fake_score, fake_label)
             real_loss = Dcriterion(real_socre, real_label)
-            dloss = fake_loss + real_loss
+            dloss = fake_loss + real_loss # 使得D能够区分真假的方向训练
             dloss.backward()
             Doptimizer.step()
             # print(fake.size())
@@ -145,44 +167,39 @@ def main():
             # print(output.size())
             # print(labels.size())
             running_loss_d += dloss.item() * frags.size(0)
-            # G
-            G.train()
-            G.zero_grad()
-            real_label = torch.tensor(np.ones((batch_size))).to(available_device).float()
-            fake = frags + G(frags)
-            pre_label = D(fake).view(batch_size)
-            # gloss = (Gcriterion1(pre_label, real_label) * k1 - Gcriterion2(fake, voxels) * k2 + Gcriterion3(fake, voxels) * k3)
-            gloss = Gcriterion(pre_label, real_label)
-            gloss.backward()
-            Goptimizer.step()
-            running_loss_g += gloss.item() * frags.size(0)
+            
         Gscheduler.step()
         Dscheduler.step()
         print(f"epoch{epoch + 1}/{epoches},Train_loss_Discriminator{running_loss_d / len(trainloader.dataset):.4f},Train_loss_Generator{running_loss_g / len(trainloader.dataset):.4f}")
-        G.eval()
-        D.eval()
-        total = 0
-        correct = 0
-        with torch.no_grad():
-            for frags, voxels in testloader:
-                frags = frags.to(available_device)
-                voxels = voxels.to(available_device)
-                fake = frags + G(frags)
-                total += voxels.size(0)
-                similarity = test.DCS(fake, voxels)
-                correct += (similarity > DCS_threshold).sum().item()
-        acc = correct / total
-        print(f"epoch{epoch + 1}/{epoches},Test_Accuracy{acc:.4f}")
-        if acc > best_acc:
-            best_acc = acc
-            best_model = G
+        writer.add_scalar("G_Loss/train", running_loss_g / len(trainloader.dataset), epoch + 1) 
+        writer.add_scalar("D_Loss/train", running_loss_d / len(trainloader.dataset), epoch + 1) 
+        # G.eval()
+        # D.eval()
+        # total = 0
+        # correct = 0
+        # with torch.no_grad():
+        #     for frags, voxels in testloader:
+        #         frags = frags.to(available_device)
+        #         voxels = voxels.to(available_device)
+        #         fake = frags + G(frags)
+        #         total += voxels.size(0)
+        #         similarity = test.DCS(fake, voxels)
+        #         correct += (similarity > DCS_threshold).sum().item()
+        # acc = correct / total
+        # print(f"epoch{epoch + 1}/{epoches},Test_Accuracy{acc:.4f}")
+        # if acc > best_acc:
+        #     best_acc = acc
+        #     best_model = G
                 
         if (epoch + 1) % 10 == 0:
             # test()           
             # pass
             torch.save(G.state_dict(), f'./model_path/G{epoch + 1}.path')
             torch.save(D.state_dict(), f'./model_path/D{epoch + 1}.path')
+
+    writer.flush()
     torch.save(best_model.state_dict(), checkpoint_dir)
+
            
 if __name__ == "__main__":
     main()

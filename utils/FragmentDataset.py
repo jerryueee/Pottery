@@ -69,10 +69,23 @@ class FragmentDataset(Dataset):
         # you may utilize self.dim_size
         # return numpy.ndrray type with shape of res*res*res (*1 or * 4) np.array (w/w.o norm vectors)
         # TODO
-        tmp = pyvox.parser.VoxParser(path).parse().to_dense().astype(np.uint64)
-        tmp = tmp[0:self.dim_size, 0:self.dim_size, 0:self.dim_size]
+        tmp = pyvox.parser.VoxParser(path).parse().to_dense()   
+        # tmp = tmp[0:self.dim_size, 0:self.dim_size, 0:self.dim_size]
+        # vox = np.zeros((self.dim_size, self.dim_size, self.dim_size))
+        # vox[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
+
+        if self.dim_size != 64:
+            rate = self.dim_size / 64
+            v = np.zeros((int(tmp.shape[0] * rate), int(tmp.shape[1] * rate), int(tmp.shape[2] * rate)))
+            for x in range(v.shape[0]):
+                for y in range(v.shape[1]):
+                    for z in range(v.shape[2]):
+                        v[x, y, z] = tmp[int(x / rate), int(y / rate), int(z / rate)]
+        else:
+            v = tmp
         vox = np.zeros((self.dim_size, self.dim_size, self.dim_size))
-        vox[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
+        vox[:v.shape[0], :v.shape[1], :v.shape[2]] = v
+
         return vox
 
     def __select_fragment__(self, voxel):
@@ -122,7 +135,7 @@ class FragmentDataset(Dataset):
 
         #train
         img_path = self.vox_files[idx]
-        vox = self.__read_vox__(img_path).astype(np.float32)
+        vox = self.__read_vox__(img_path).astype(np.float32) #不转成float32与double相乘报错
         match = re.search(r'\d+',img_path) #根据文件的命名格式，利用正则表达式搜索出path中的数字作为label
         label = match.group()
         frag, select_frag = self.__select_fragment__(vox.copy())

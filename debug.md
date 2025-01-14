@@ -17,5 +17,4 @@ vox = self.__read_vox__(img_path).astype(np.float32)
 
 7. labels要和D的输出形状一样
 
-8. 计算图gloss无法backward
-是因为训练完D之后zero_grad了G，导致丢失计算图。解决：第二次再进行一次frag+G(frag)
+8. gloss组合加法共用计算图问题

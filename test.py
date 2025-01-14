@@ -12,23 +12,22 @@ from utils.model import Generator, Discriminator
 from tqdm import tqdm
 import utils.visualize as vis
 
-available_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 available_device = torch.device('cpu')
 resolution = 64
 z_latent_space = 128
 batch_size = 64
-checkpoint_dir = './model_path/mode.path'
+checkpoint_dir = './model_path/model.path'
 theta = 0.1
 
 
-JD_threshold = 0.1
-DCS_threshold = 0.8
+JD_threshold = 0.9
+DCS_threshold = 0.1
 MSE_threshold = 0.1
 
 def criterion(outputs, targets):
     return nn.MSELoss()(outputs, targets)
 
-def criterion_dsc(outputs, targets):
+def criterion_dcs(outputs, targets):
     batch_size = outputs.size(0)
     dsc_list = []
     for i in range(batch_size):
@@ -71,10 +70,8 @@ def DCS(fake:torch.Tensor, real:torch.Tensor):
     return dsc
 
 def MSE(fake:torch.Tensor, real:torch.Tensor):
-    fake = fake.bool()
-    fake=fake.astype(int)
-    real = real.bool()
-    real=real.astype(int)
+    fake = fake>0.5
+    real = real
     return nn.MSELoss()(fake, real)
 
 def test():
@@ -94,17 +91,23 @@ def test():
     # test
     correct = 0
     total = 0
+    cnt = 0
     with torch.no_grad():
         for frags, voxels in tqdm(testloader, desc=f"epoch:{1}/{1}", unit="batch"):
             frags, voxels = frags.to(available_device), voxels.to(available_device)
             outputs = model(frags)
-            if total < 5*batch_size:
-                print(outputs[0].size())
+            if total  % batch_size == 0:
+                # print(outputs[0].size())
                 # print(outputs[0])
                 # vis.plot_frag(np.ones((32,32,32)), 'test.png')
                 # vis.plot_frag(np.array(outputs[0]), 'test.png')
-                vis.plot_join(np.array(outputs[0]),frags[0], 'test_join.png')
-            losses = JD(outputs, voxels)
+                index = np.random.randint(len(outputs))
+                vis.plot_join(np.array(outputs[index]),frags[index], f'test_result{cnt+1}.png')
+                cnt += 1
+            # if total % batch_size == 0 and total > 8 * batch_size:
+            #     i = np.random.randint(len(outputs))
+            #     vis.plot_join(np.array(outputs[i]),frags[i], 'test_join.png')
+            losses = MSE(outputs, voxels)
             correct += (losses).sum().item()
             total += voxels.size(0)           
     print(f'loss of pottery generated: {correct / total}')

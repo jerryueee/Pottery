@@ -9,10 +9,10 @@ from visualize import *
 def posprocessing(fake, mesh_frag):
     # fake is the g 48TY][enerated M*M*(1 or 4) output, try to recover a voxel from it 
     # design by yourself or you can also choose to ignore this function
-    mesh_frag=(mesh_frag> 0.5)
-    mesh_frag=mesh_frag.astype(np.int)
+    # mesh_frag=(mesh_frag> 0.5)
+    # mesh_frag=mesh_frag.astype(np.int)
     # fake是一批数据，需要选择出其中大于平均值的那些
-    
+    plot_join(fake, mesh_frag)
     # fake=(fake>fake.mean())
     return 
 

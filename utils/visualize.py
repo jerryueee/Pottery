@@ -1,3 +1,4 @@
+
 import numpy as np
 import plotly.graph_objects as go
 import pyvox.parser
@@ -162,8 +163,8 @@ def plot_join(vox_1, vox_2, save_dir):
 
      '''
     
-    voxels1 = np.array(np.where(vox_1>0.7)).T
-    voxels2 = np.array(np.where(vox_2>0.7)).T
+    voxels1 = np.array(np.where(vox_1>0.9)).T
+    voxels2 = np.array(np.where(vox_2>0.9)).T
     x1, y1, z1 = voxels1[:, 0], voxels1[:, 1], voxels1[:, 2]
     x2, y2, z2 = voxels2[:, 0], voxels2[:, 1], voxels2[:, 2]
     
