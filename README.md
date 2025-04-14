@@ -1,2 +1,3 @@
 # Pottery
-PKU Computer VIsion Final Project 2024 Autumn 
+2024 Computer Vision Final Project
+Recover pottery from chips based on GANs 
